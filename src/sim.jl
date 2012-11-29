@@ -282,23 +282,41 @@ type PassedUnknown <: UnknownVariable
     ref
 end
 
+type DelayHistory
+    t::Vector{Any}
+    y::Vector{Any}
+end
 
-function _interp(x, t)
-    # assumes that tvec is sorted from low to high
-    if length(x.t) == 0 || t < 0.0 return zero(x.value) end
-    idx = search_sorted_first(x.t, t)
-    ## @show x
-    ## @show t
-    if idx == 1
-        return x.x[1]
-    elseif idx > length(x.t) 
-        return x.x[end]
-    else
-        return (t - x.t[idx-1]) / (x.t[idx] - x.t[idx-1]) .* (x.x[idx] - x.x[idx-1]) + x.x[idx-1]
+function _delay(xx, t)
+    x = xx.x1
+    @show x
+    @show t
+    # store the current t & y
+    while length(x.t) > 0 && xx.sim.t[1] <= x.t[end]  # pop off some invalid times if needed
+        del(x.t, length(x.t))
+        del(x.y, length(x.y))
     end
+    push(x.t, xx.sim.t[1])
+    push(x.y, deepcopy(xx.value))
+    # assumes that tvec is sorted from low to high
+    if length(x.t) == 0 || t < 0.0 return zero(xx.value) end
+    idx = search_sorted_first(x.t, t)
+    if idx == 1
+        res = x.y[1]
+    elseif idx > length(x.t) 
+        res = x.y[end]
+    else
+    @show x.t[idx-1]
+    @show x.t[idx]
+    @show x.y[idx-1]
+    @show x.y[idx]
+        res = (t - x.t[idx-1]) / (x.t[idx] - x.t[idx-1]) .* (x.y[idx] - x.y[idx-1]) + x.y[idx-1]
+    @show res
+    end
+    res
 end
 # version vectorized on t:
-function _interp(x, t::Vector)
+function _delay(x, t::Vector)
     res = zero(t)
     for i in 1:length(res)
         if t[i] < 0.0 continue end
@@ -318,10 +336,8 @@ end
 
 
 function delay(x::Unknown, val)
-    m.sim.t[1]
-    x.t = {0.0}
-    x.x = {x.value}
-    MExpr(:(Sims._interp($(PassedUnknown(x)), t[1] - $(val))))
+    x.x1 = DelayHistory({0.0}, {x.value})
+    MExpr(:(Sims._delay($(PassedUnknown(x)), t[1] - $(val))))
 end
 
 

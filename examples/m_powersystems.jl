@@ -91,7 +91,7 @@ function ex_Modal()
     np = Voltage(zeros(3))
     nl = Voltage(zeros(3), "Vl")
     g = 0.0
-    Vln = 7200.0
+    Vln = 7.200
     freq = 6000.0
     rho = 100.0
     len = 4000.0
@@ -115,7 +115,7 @@ end
 m = ex_Modal()
 f = elaborate(m)
 s = create_sim(f)
-y = sim(s, 3e-3, 500)
+y = sim(s, 3e-3, 50000)
 
 function sim_Modal()
     y = sim(ex_Modal(), 0.2)
