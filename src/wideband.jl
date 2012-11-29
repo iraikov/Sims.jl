@@ -686,8 +686,8 @@ function Wideband(Vx::ElectricalNode, Vy::ElectricalNode,
      sum(sum(Xx,3),2) - Iauxx   
      sum(sum(Xy,3),2) - Iauxy   
      # eq 44:  
-     {{HkPoles[k,i] * Xx[:,k,i] + HkResidues[:,:,k,i] * delay(Iry, md[k])  -  der(Xx[:,k,i])  for k in 1:Ng, i in 1:NpH}}[:]
-     {{HkPoles[k,i] * Xy[:,k,i] + HkResidues[:,:,k,i] * delay(Irx, md[k])  -  der(Xy[:,k,i])  for k in 1:Ng, i in 1:NpH}}[:]
+     {HkPoles[k,i] * Xx[:,k,i] + HkResidues[:,:,k,i] * delay(Iry, md[k])  -  der(Xx[:,k,i])  for k in 1:Ng, i in 1:NpH}[:]
+     {HkPoles[k,i] * Xy[:,k,i] + HkResidues[:,:,k,i] * delay(Irx, md[k])  -  der(Xy[:,k,i])  for k in 1:Ng, i in 1:NpH}[:]
      # find the reflected current
      Irx + Iauxx - 2 * Ishx
      Iry + Iauxy - 2 * Ishy

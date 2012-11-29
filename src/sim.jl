@@ -286,6 +286,8 @@ function _interp(x, t)
     # assumes that tvec is sorted from low to high
     if length(x.t) == 0 || t < 0.0 return zero(x.value) end
     idx = search_sorted_first(x.t, t)
+    ## @show x
+    ## @show t
     if idx == 1
         return x.x[1]
     elseif idx > length(x.t) 
@@ -295,7 +297,7 @@ function _interp(x, t)
     end
 end
 # version vectorized on t:
-function _interp(x, t)
+function _interp(x, t::Vector)
     res = zero(t)
     for i in 1:length(res)
         if t[i] < 0.0 continue end
@@ -306,6 +308,7 @@ function _interp(x, t)
         elseif idx > length(x.t) 
             res[i] = x.x[end][i]
         else
+            @show idx
             res[i] = (t[i] - x.t[idx-1]) / (x.t[idx] - x.t[idx-1]) .* (x.x[idx][i] - x.x[idx-1][i]) + x.x[idx-1][i]
         end
     end

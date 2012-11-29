@@ -522,7 +522,7 @@ end
 
 function sim_CharacteristicThyristors()
     y = sim(ex_CharacteristicThyristors(), 2.0)
-    wplot(y, "ex_CharacteristicThyristors.pdf")
+    wplot(y, "CharacteristicThyristors.pdf")
 end
 
 
@@ -558,4 +558,5 @@ function run_electrical_examples()
     sim_ShowVariableResistor()
     sim_CharacteristicThyristors()
     ## sim_ControlledSwitchWithArc(BROKEN)
+    nothing
 end

@@ -56,11 +56,14 @@ function ModalLine(v1::ElectricalNode, v2::ElectricalNode, Z::SeriesImpedance, Y
     Vmode2 = Voltage(vals)
     Iout1 = Current(vals)
     Iout2 = Current(vals)
+    Idelay1 = Current(vals)
+    Idelay2 = Current(vals)
 
     # prep
     e,Tv = eig(Z * Y)
     velocity = 2pi * freq ./ imag(sqrt(e))
     delays = len ./ velocity
+    @show delays
     Ti = inv(Tv.')
     Zmode = Ti.' * Z * Ti
     Ymode = Tv.' * Y * Tv
@@ -79,17 +82,67 @@ function ModalLine(v1::ElectricalNode, v2::ElectricalNode, Z::SeriesImpedance, Y
      ## i1 - Ti * Imode1
      ## i2 - Ti * Imode2
      ## v1 - Tv * Vmode1 
-     ## v2 - Tv * Vmode2 
-     Imode1 - Iout1 + delay(Iout2, delays)
-     Imode2 - Iout2 + delay(Iout1, delays)
-     Vmode1 ./ Zsurge - Iout1 - delay(Iout2, delays)
-     Vmode2 ./ Zsurge - Iout2 - delay(Iout1, delays)
+     ## v2 - Tv * Vmode2
+     Idelay1 - delay(Iout1, 13e-6)
+     Idelay2 - delay(Iout2, 13e-6)
+     ## Idelay1 - delay(Iout1, delays)
+     ## Idelay2 - delay(Iout2, delays)
+     Imode1 - Iout1 + Idelay2
+     Imode2 - Iout2 + Idelay1
+     Vmode1 ./ Zsurge - Iout1 - Idelay2
+     Vmode2 ./ Zsurge - Iout2 - Idelay1
      ## Imode1 ->   <- delay(Iout2)       delay(Iout1) ->  <- Imode2
      ##           |                                      |
      ##           \/                                     \/
      ##          Iout1                                 Iout2
     }
 end
+
+function ModalLine(v1::ElectricalNode, v2::ElectricalNode, Z::SeriesImpedance, Y::ShuntAdmittance, len::Real, freq::Real)
+
+    # NOTE: This is really slow right now with a short time step. With a longer time step, it doesn't give good answers.
+    # delay() is probably the reason. It may be too "step-changy" because it doesn't interpolate over a fine enough number of points.
+    # With longer time steps, some of the remote end gets lost in interpolation.
+    
+    # unknowns
+    vals = compatible_values(v1, v2)
+    i1 = Current(vals)
+    i2 = Current(vals)
+    Imode1 = Current(vals)
+    Imode2 = Current(vals)
+    Vmode1 = Voltage(vals)
+    Vmode2 = Voltage(vals)
+    hist1 = Current(vals)
+    hist2 = Current(vals)
+
+    # prep
+    e,Tv = eig(Z * Y)
+    velocity = 2pi * freq ./ imag(sqrt(e))
+    delays = len ./ velocity
+    @show delays
+    Ti = inv(Tv.')
+    Zmode = Ti.' * Z * Ti
+    Ymode = Tv.' * Y * Tv
+    Ti = real(Ti)
+    Tv = real(Tv)
+    Zsurge = real(sqrt(diag(Zmode)) ./ sqrt(diag(Ymode)))
+    Ysurge = Ti * diagm(1 ./ Zsurge) * Ti.'
+
+    # equations
+    {
+     RefBranch(v1,  i1)
+     RefBranch(v2, -i2)
+     Imode1 - Tv.' * i1
+     Imode2 - Tv.' * i2
+     Vmode1 - Ti.' * v1
+     Vmode2 - Ti.' * v2
+     Vmode1 ./ Zsurge + Imode1 + hist1
+     Vmode2 ./ Zsurge + Imode2 + hist2
+     Vmode1 ./ Zsurge - Imode1 + delay(hist2, delays[2]) 
+     Vmode2 ./ Zsurge - Imode2 + delay(hist1, delays[2]) 
+    }
+end
+
 
 
 ########################################

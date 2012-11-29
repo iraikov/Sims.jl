@@ -107,18 +107,19 @@ function ex_Modal()
      SineVoltage(ns, g, Vln, 60.0, [0, -2/3*pi, 2/3*pi])
      SeriesProbe(ns, np, "I")
      ModalLine(np, nl, Z, Y, len, freq)
-     ConstZSeriesLoad(nl, g, load_VA, load_pf, Vln, 60.0)
+     ## ConstZSeriesLoad(nl, g, load_VA, load_pf, Vln, 60.0)
      }
 end
 
      
-## m = ex_Modal()
-## f = elaborate(m)
-## s = create_sim(f)
-## y = sim(s, 0.2)
+m = ex_Modal()
+f = elaborate(m)
+s = create_sim(f)
+y = sim(s, 3e-3, 500)
 
 function sim_Modal()
     y = sim(ex_Modal(), 0.2)
-    wplot(y, "ex_Modal.pdf")
+    wplot(y, "Modal.pdf")
+    nothing
 end
 
