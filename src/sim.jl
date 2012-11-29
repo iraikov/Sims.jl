@@ -139,26 +139,27 @@ end
 
 type Unknown{T<:UnknownCategory} <: UnknownVariable
     sym::Symbol
-    value         # holds initial values (and type info)
+    value         # holds initial values (and type info); later updated to point to actual values
     label::String
-    save_history::Bool
-    t::Array{Any,1}
-    x::Array{Any,1}
-    Unknown() = new(gensym(), 0.0, "", false, {}, {})
-    Unknown(sym::Symbol, label::String) = new(sym, 0.0, label, true, {0.0}, {0.0})
-    Unknown(sym::Symbol, value) = new(sym, value, "", false, {}, {})
-    Unknown(value) = new(gensym(), value, "", false, {}, {})
-    Unknown(label::String) = new(gensym(), 0.0, label, true, {0.0}, {0.0})
-    Unknown(value, label::String) = new(gensym(), value, label, true, {0.0}, {0.0})
-    Unknown(sym::Symbol, value, label::String) = new(sym, value, label, true, {0.0}, {value})
-    Unknown(sym::Symbol, value, label::String, save_history::Bool, t::Array{Any,1}, x::Array{Any,1}) = new(sym, value, label, save_history, t, x)
+    sim     # pointer to the overall model; type Sim
+    idx     # pointer to the variable values; Int or Range1
+    x1      # extra slot (used by delay for example)
+    x2      # extra slot
+    Unknown() = new(gensym(), 0.0, "", 0, 0, 0, 0)
+    Unknown(sym::Symbol, label::String) = new(sym, 0.0, label, 0, 0, 0, 0)
+    Unknown(sym::Symbol, value) = new(sym, value, "", 0, 0, 0, 0)
+    Unknown(value) = new(gensym(), value, "", 0, 0, 0, 0)
+    Unknown(label::String) = new(gensym(), 0.0, label, 0, 0, 0, 0)
+    Unknown(value, label::String) = new(gensym(), value, label, 0, 0, 0, 0)
+    Unknown(sym::Symbol, value, label::String) = new(sym, value, label, 0, 0, 0, 0)
+    Unknown(sym::Symbol, value, label::String, sim, idx, x1, x2) = new(sym, value, label, 0, 0, 0, 0)
 end
-Unknown() = Unknown{DefaultUnknown}(gensym(), 0.0, "", false, {}, {})
-Unknown(x) = Unknown{DefaultUnknown}(gensym(), x, "", false, {}, {})
-Unknown(s::Symbol, label::String) = Unknown{DefaultUnknown}(s, 0.0, label, true, {0.0}, {0.0})
-Unknown(x, label::String) = Unknown{DefaultUnknown}(gensym(), x, label, true, {0.0}, {0.0})
-Unknown(label::String) = Unknown{DefaultUnknown}(gensym(), 0.0, label, true, {0.0}, {0.0})
-Unknown(s::Symbol, x) = Unknown{DefaultUnknown}(s, x, "", false, {}, {})
+Unknown() = Unknown{DefaultUnknown}(gensym(), 0.0, "", 0, 0, 0, 0)
+Unknown(x) = Unknown{DefaultUnknown}(gensym(), x, "", 0, 0, 0, 0)
+Unknown(s::Symbol, label::String) = Unknown{DefaultUnknown}(s, 0.0, label, 0, 0, 0, 0)
+Unknown(x, label::String) = Unknown{DefaultUnknown}(gensym(), x, label, 0, 0, 0, 0)
+Unknown(label::String) = Unknown{DefaultUnknown}(gensym(), 0.0, label, 0, 0, 0, 0)
+Unknown(s::Symbol, x) = Unknown{DefaultUnknown}(s, x, "", 0, 0, 0, 0)
 
 
 is_unknown(x) = isa(x, UnknownVariable)
@@ -250,7 +251,7 @@ compatible_values(num::Number, u::UnknownVariable) = length(value(u)) > length(n
 
 
 # System time - a special unknown variable
-const MTime = Unknown(:time, 0.0)
+const MTime = Unknown(:time, [0.0])
 
 
 #  The type RefBranch and the helper Branch are used to indicate the
@@ -317,7 +318,7 @@ end
 
 
 function delay(x::Unknown, val)
-    x.save_history = true
+    m.sim.t[1]
     x.t = {0.0}
     x.x = {x.value}
     MExpr(:(Sims._interp($(PassedUnknown(x)), t[1] - $(val))))
@@ -638,8 +639,9 @@ SimFunctions(resid::Function, event_at::Function, event_pos::Vector{None}, event
 type Sim
     eq::EquationSet           # the input
     F::SimFunctions
-    y0::Array{Float64, 1}     # initial values
-    yp0::Array{Float64, 1}    # initial values of derivatives
+    t::Array{Float64, 1}
+    y::Array{Float64, 1}     # initial values
+    yp::Array{Float64, 1}    # initial values of derivatives
     id::Array{Int, 1}         # indicates whether a variable is algebraic or differential
     outputs::Array{ASCIIString, 1} # output labels
     unknown_idx_map::Dict     # symbol => index into y (or yp)
@@ -664,10 +666,20 @@ function create_sim(eq::EquationSet)
     sm.yp_map = Dict()
     sm.F = setup_functions(sm)  # Most of the work's done here.
     N_unknowns = sm.varnum - 1
-    sm.y0 = fill_from_map(0.0, N_unknowns, sm.y_map, x -> to_real(x.value))
-    sm.yp0 = fill_from_map(0.0, N_unknowns, sm.yp_map, x -> to_real(x.value))
+    sm.y = fill_from_map(0.0, N_unknowns, sm.y_map, x -> to_real(x.value))
+    sm.yp = fill_from_map(0.0, N_unknowns, sm.yp_map, x -> to_real(x.value))
     sm.id = fill_from_map(-1, N_unknowns, sm.yp_map, x -> 1)
     sm.outputs = fill_from_map("", N_unknowns, sm.y_map, x -> x.label)
+    # fill in links in the unknowns
+    for (k,v) in sm.y_map
+        v.value = pointer_to_array(pointer(sm.y, applicable(ref, k, 1) ? k[1] : k), (length(k),))
+        v.idx = k
+        v.sim = sm
+    end
+    for (k,v) in sm.yp_map
+        v.value = pointer_to_array(pointer(sm.yp, applicable(ref, k, 1) ? k[1] : k), (length(k),))
+    end
+    sm.t = MTime.value
     sm
 end
 
@@ -946,10 +958,11 @@ println("starting sim()")
     
     function setup_sim(sm::Sim, tstart::Float64, tstop::Float64, Nsteps::Int)
         global __sim_structural_change = false
-        N = [int32(length(sm.y0))]
-        t = [tstart]
-        y = copy(sm.y0)
-        yp = copy(sm.yp0)
+        N = [int32(length(sm.y))]
+        t = sm.t 
+        t[:] = tstart
+        y = sm.y
+        yp = sm.yp
         nrt = [int32(length(sm.F.event_pos))]
         rpar = [0.0]
         rtol = [1e-5]
@@ -959,7 +972,7 @@ println("starting sim()")
         liw = [int32(2*N[1] + 40)] 
         iwork = fill(int32(0), liw[1])
         iwork[40 + (1:N[1])] = sm.id
-        ipar = [int32(length(sm.y0)), nrt[1]]
+        ipar = [int32(length(sm.y)), nrt[1]]
         jac = [int32(0)]
         psol = [int32(0)]
         jroot = fill(int32(0), max(nrt[1], 1))
@@ -1003,12 +1016,6 @@ println("starting sim()")
             yout[idx, 1] = t[1]
             yout[idx, 2:(Noutputs + 1)] = y[yidx]
             tout = t + tstep
-            for (k,v) in sm.y_map
-                if v.save_history
-                    push(v.t, t[1])
-                    push(v.x, y[k])
-                end
-            end
             if idid[1] == 5 # Event found
                 for ridx in 1:length(jroot)
                     if jroot[ridx] == 1
@@ -1020,14 +1027,6 @@ println("starting sim()")
                 if __sim_structural_change
                     println("")
                     println("Structural change event found at t = $(t[1]), restarting")
-                    # Put t, y, and yp values back into original equations:
-                    for (k,v) in sm.y_map
-                        v.value = y[k]
-                    end
-                    for (k,v) in sm.yp_map
-                        v.value = yp[k]
-                    end
-                    MTime.value = t[1]
                     # Reflatten equations
                     sm = create_sim(elaborate(sm.eq))
                     global _sm = sm
