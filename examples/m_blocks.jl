@@ -1,7 +1,6 @@
 load("Sims")
 using Sims
 
-
 ########################################
 ## Blocks examples
 ##
@@ -20,15 +19,7 @@ function ex_PID_Controller()
     s2 = Unknown("s2") 
     s3 = Unknown("s3")
     s4 = Unknown("s4")
-    k = 100.0
-    Ti = 0.1
-    Td = 0.1
-    yMax = 12.0
-    yMin = -yMax
-    wp = 1.0
-    wd = 0.0
-    Ni = 0.1
-    Nd = 10.0
+    
     {
      ## KinematicPTP(s1, 0.5, driveAngle, 1.0, 1.0)
      ## Integrator(s1, s2, 1.0)
@@ -36,8 +27,8 @@ function ex_PID_Controller()
                  ifelse(MTime < 1.5, MTime - 0.5,
                         ifelse(MTime < 2.2, 1.0, 3.2 - MTime)))
      SpeedSensor(n2, s3)
-     LimPID(s2, s3, s4, "PI",
-            k, Ti, Td, yMax, yMin, wp, wd, Ni, Nd)
+     LimPID(s2, s3, s4,
+            @options(k => 100.0, Ti => 0.1, Td => 0.1, yMax => 12.0, Ni => 0.1))
      SignalTorque(n1, 0.0, s4)
      Inertia(n1, n2, 1.0)
      SpringDamper(n2, n3, 1e4, 100)

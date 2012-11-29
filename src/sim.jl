@@ -223,7 +223,7 @@ for f = (:+, :-, :*, :.*, :/, :./, :^, :min, :max, :isless, :&, :|, :atan2, :dot
 end 
 
 for f = (:der, :sign, 
-         :-, :!, :ceil, :floor,  :trunc,  :round, :sum,
+         :-, :!, :ceil, :floor,  :trunc,  :round, :sum, :pre,
          :iceil,  :ifloor, :itrunc, :iround,
          :abs,    :angle,  :log10,
          :sqrt,   :cbrt,   :log,    :log2,   :exp,   :expm1,
@@ -391,6 +391,7 @@ type DiscreteVar
 end
 DiscreteVar(d::Discrete, funs::Vector{Function}) = DiscreteVar(d.value, d.value, funs)
 DiscreteVar(d::Discrete) = DiscreteVar(d.value, d.value, Function[])
+## pre(d::Discrete) = d.pre 
 
 # Add hooks to a discrete variable.
 addhook!(d::Discrete, ex::ModelType) = push(d.hookex, strip_mexpr(ex))

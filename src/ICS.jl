@@ -68,7 +68,7 @@ function f1Pole(alfa::Float64,  # Parametro di discretizzazione
     return y
 end 
 
-pre(x) = x  # kludge for now
+pre(d::Discrete) = d.pre 
 
 function PID(SP::Signal, PV::Signal, CS::Signal, opts::Options)
     @defaults opts begin 
@@ -145,24 +145,27 @@ function PID(SP::Signal, PV::Signal, CS::Signal, opts::Options)
         satin   = Discrete() # saturation input
         satDiff = Discrete() # difference between saturation input and output signals
         cs      = Discrete() # Control Signal before the biasing
+        SPd     = Discrete() 
+        PVd     = Discrete() 
         {
          Event(sin(MTime / Ts * 2pi), {
              reinit(Paction, Kp*(b*SP - PV))
              # Signal for preventing antiwindup (integrator reset signal)
              reinit(satDiff, cs - satin)
-             reinit(Iaction, !ts ?
-                    fIntegrator(alfa, Kp/Ti*(SP - PV) + 1/Tt*satDiff, Kp/Ti*(pre(SP) - pre(PV)) + 1/Tt*pre(satDiff), pre(Iaction), Ts, 1) :
-                    f1Pole(alfa, cs, pre(cs), pre(Iaction), Ts, 1, eps))
-             reinit(Fder, Td > 0 ?
-                    f1Pole(alfa, c*SP - PV, c*pre(SP) - pre(PV), pre(Fder), Ts, Kp*N, Td/N) :
-                    0)
-             reinit(Daction, Kp*N*(c*SP - PV) - Fder)
              reinit(satin, Iaction + Paction + (Td>0 ? Daction : 0))
              # Anti-windup
              reinit(cs, AntiWindup ? max(CSmin,min(CSmax,(ts ? tr : satin))) : (ts ? tr : satin))
-             # biasing the output
-             reinit(CS, AntiWindup ? max(CSmin,min(CSmax,cs + pre(bias))) : (cs + pre(bias)))
+             reinit(Iaction, !ts ?
+                    fIntegrator(alfa, Kp/Ti*(SP - PV) + 1/Tt*satDiff, Kp/Ti*(SPd.pre - PVd.pre) + 1/Tt*satDiff.pre, Iaction, Ts, 1) :
+                    f1Pole(alfa, cs, cs.pre, Iaction.pre, Ts, 1, eps))
+             reinit(Fder, Td > 0 ?
+                    f1Pole(alfa, c*SP - PV, c*SPd.pre - PVd.pre, Fder.pre, Ts, Kp*N, Td/N) :
+                    0)
+             reinit(Daction, Kp*N*(c*SP - PV) - Fder)
+             reinit(SPd, SP)
+             reinit(PVd, PV)
          })
+         # biasing the output
          CS - (AntiWindup ? max(CSmin,min(CSmax,cs + pre(bias))) : (cs + pre(bias))) 
         }
     end
@@ -306,7 +309,7 @@ function ex_PI_ContinuousVsDigital()
          Ti => 5.0))
      PID(step_u, disc_y, disc_cs,
          @options(AntiWindup => true,
-         ## Ts => 0.01,
+         Ts => 0.01,
          CS_start => 0.0,
          CSmin => 0.0,
          CSmax => 2.0,

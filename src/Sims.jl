@@ -1,3 +1,5 @@
+load("Options")
+
 module Sims
 
 if isdir(julia_pkgdir() * "/Winston")
@@ -38,6 +40,8 @@ import Base.sinh,Base.cosh,Base.tanh,Base.coth,Base.sech,Base.csch
 import Base.asin,Base.acos,Base.atan,Base.acot,Base.asec,Base.acsc
 import Base.acoth,Base.asech,Base.acsch,Base.sinc,Base.cosc                 
 
+using OptionsMod
+export Options, @options     # export these so with `using Sims` the user doesn't have to do `using OptionsMod`
 
 ## Types
 export ModelType, UnknownCategory, Unknown, UnknownVariable, DefaultUnknown, DerUnknown, RefUnknown, RefBranch,
