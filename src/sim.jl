@@ -137,6 +137,15 @@ abstract UnknownVariable <: ModelType
 type DefaultUnknown <: UnknownCategory
 end
 
+type MExpr <: ModelType
+    ex::Expr
+end
+mexpr(hd::Symbol, args::ANY...) = MExpr(expr(hd, args...))
+
+# For now, a model is just a vector that anything, but probably it
+# should include just ModelType's.
+const Model = Vector{Any}
+
 type Unknown{T<:UnknownCategory} <: UnknownVariable
     sym::Symbol
     value         # holds initial values (and type info); later updated to point to actual values
@@ -168,23 +177,41 @@ type DerUnknown <: UnknownVariable
     sym::Symbol
     value        # holds initial values
     parent::Unknown
+    idx          # for subsetting, like der(y[1])
     # label::String    # Do we want this? 
 end
-DerUnknown(u::Unknown) = DerUnknown(u.sym, 0.0, u)
-der(x::Unknown) = DerUnknown(x.sym, compatible_values(x), x)
-der(x::Unknown, val) = DerUnknown(x.sym, val, x)
+DerUnknown(u::Unknown) = DerUnknown(gensym(), 0.0, u, nothing)
+der(x::Unknown) = DerUnknown(gensym(), compatible_values(x), x, nothing)
+der(x::Unknown, val) = DerUnknown(gensym(), val, x, nothing)
+
+# Add array access capability for Unknowns:
+
+type RefUnknown{T<:UnknownCategory} <: UnknownVariable
+    u::Unknown{T}
+    idx
+end
+ref(x::Unknown, args...) = RefUnknown(x, args)
+ref(x::MExpr, args...) = mexpr(:call, :ref, args...)
+der(x::RefUnknown) = DerUnknown(gensym(), compatible_values(x), x.u, x.idx)
+der(x::RefUnknown, val) = DerUnknown(gensym(), val, x.u, x.idx)
+length(u::UnknownVariable) = length(value(u))
+size(u::UnknownVariable, i) = size(value(u), i)
+hcat(x::ModelType...) = mexpr(:call, :hcat, x...)
+vcat(x::ModelType...) = mexpr(:call, :vcat, x...)
+
+value(x) = x
+value(x::Model) = map(value, x)
+value(x::UnknownVariable) = x.value
+value(x::RefUnknown) = x.u.value[x.idx...]
+value(a::MExpr) = value(a.ex)
+value(e::Expr) = eval(Expr(e.head, isempty(e.args) ? e.args : map(value, e.args), e.typ))
 
 # show(a::Unknown) = show(a.sym)
-
-type MExpr <: ModelType
-    ex::Expr
-end
-mexpr(hd::Symbol, args::ANY...) = MExpr(expr(hd, args...))
 
 # Set up defaults for operations on ModelType's for many common
 # methods.
 
-for f = (:+, :-, :*, :.*, :/, :./, :^, :min, :max, :isless, :&, :|, :atan2)
+for f = (:+, :-, :*, :.*, :/, :./, :^, :min, :max, :isless, :&, :|, :atan2, :dot)
     @eval ($f)(x::ModelType, y::ModelType) = mexpr(:call, ($f), x, y)
     @eval ($f)(x::ModelType, y::Any) = mexpr(:call, ($f), x, y)
     @eval ($f)(x::Any, y::ModelType) = mexpr(:call, ($f), x, y)
@@ -196,7 +223,7 @@ for f = (:+, :-, :*, :.*, :/, :./, :^, :min, :max, :isless, :&, :|, :atan2)
 end 
 
 for f = (:der, :sign, 
-         :-, :!, :ceil, :floor,  :trunc,  :round, :sum, 
+         :-, :!, :ceil, :floor,  :trunc,  :round, :sum,
          :iceil,  :ifloor, :itrunc, :iround,
          :abs,    :angle,  :log10,
          :sqrt,   :cbrt,   :log,    :log2,   :exp,   :expm1,
@@ -210,30 +237,6 @@ end
 sum(x::MExpr, i::Int) = mexpr(:call, :sum, x, i)
 sum(x::ModelType, i::Int) = mexpr(:call, :sum, x, i)
 
-# For now, a model is just a vector that anything, but probably it
-# should include just ModelType's.
-const Model = Vector{Any}
-
-
-# Add array access capability for Unknowns:
-
-type RefUnknown{T<:UnknownCategory} <: UnknownVariable
-    u::Unknown{T}
-    idx
-end
-ref(x::Unknown, args...) = RefUnknown(x, args)
-ref(x::MExpr, args...) = mexpr(:call, :ref, args...)
-length(u::UnknownVariable) = length(value(u))
-size(u::UnknownVariable, i) = size(value(u), i)
-hcat(x::ModelType...) = mexpr(:call, :hcat, x...)
-vcat(x::ModelType...) = mexpr(:call, :vcat, x...)
-
-value(x) = x
-value(x::Model) = map(value, x)
-value(x::UnknownVariable) = x.value
-value(x::RefUnknown) = x.u.value[x.idx...]
-value(a::MExpr) = value(a.ex)
-value(e::Expr) = eval(Expr(e.head, isempty(e.args) ? e.args : map(value, e.args), e.typ))
                        
 # The following helper functions are to return the base value from an
 # unknown to use when creating other unknowns. An example would be:
@@ -684,19 +687,29 @@ function create_sim(eq::EquationSet)
     sm.yp_map = Dict()
     sm.F = setup_functions(sm)  # Most of the work's done here.
     N_unknowns = sm.varnum - 1
-    sm.y = fill_from_map(0.0, N_unknowns, sm.y_map, x -> to_real(x.value))
-    sm.yp = fill_from_map(0.0, N_unknowns, sm.yp_map, x -> to_real(x.value))
-    sm.id = fill_from_map(-1, N_unknowns, sm.yp_map, x -> 1)
+    sm.y = fill(0.0, N_unknowns)
+    for (k,x) in sm.y_map
+        sm.y[x.idx] = to_real(x.value)
+    end
+    sm.yp = fill(0.0, N_unknowns)
+    sm.id = fill(-1.0, N_unknowns)
+    for (k,x) in sm.yp_map
+        if x.idx == nothing
+            sm.yp[x.parent.idx] = to_real(x.value)
+            sm.id[x.parent.idx] = 1.0
+        else
+            sm.yp[[x.parent.idx][x.idx...]] = to_real(x.value)
+            sm.id[[x.parent.idx][x.idx...]] = 1.0
+        end
+    end
     sm.outputs = fill_from_map("", N_unknowns, sm.y_map, x -> x.label)
     # fill in links in the unknowns
-    for (k,v) in sm.y_map
-        v.value = pointer_to_array(pointer(sm.y, applicable(ref, k, 1) ? k[1] : k), (length(k),))
-        v.idx = k
-        v.sim = sm
+    for (k,x) in sm.y_map
+        x.value = pointer_to_array(pointer(sm.y, applicable(ref, x.idx, 1) ? x.idx[1] : x.idx), (length(x.idx),))
     end
-    for (k,v) in sm.yp_map
-        v.value = pointer_to_array(pointer(sm.yp, applicable(ref, k, 1) ? k[1] : k), (length(k),))
-    end
+    ## for (k,x) in sm.yp_map
+    ##     x.value = pointer_to_array(pointer(sm.yp, applicable(ref, x.idx, 1) ? x.idx[1] : x.idx), (length(x.idx),))
+    ## end
     sm.t = MTime.value
     sm
 end
@@ -709,7 +722,7 @@ function fill_from_map(default_val,# Default value for the vector.
                        f)          # A function applied to each value.
     x = fill(default_val, N)
     for (k,v) in the_map
-        x[ [k] ] = f(v)
+        x[ v.idx ] = f(v)
     end
     x
 end
@@ -847,13 +860,16 @@ end
 
 # add_var add's a variable to the unknown_idx_map if it isn't already
 # there. 
-function add_var(v, sm) 
+function add_var(v::Unknown, sm) 
     if !has(sm.unknown_idx_map, v.sym)
         # Account for the length and fundamental size of the object
         len = length(v.value) * int(sizeof([v.value][1]) / 8)  
         idx = len == 1 ? sm.varnum : (sm.varnum:(sm.varnum + len - 1))
         sm.unknown_idx_map[v.sym] = idx
         sm.varnum = sm.varnum + len
+        sm.y_map[v.sym] = v
+        v.idx = idx
+        v.sim = sm
     end
 end
 
@@ -867,30 +883,33 @@ function replace_unknowns(a::Unknown, sm::Sim)
         return :(t[1])
     end
     add_var(a, sm)
-    sm.y_map[sm.unknown_idx_map[a.sym]] = a
     if isreal(a.value) && ndims(a.value) < 2
-        :(ref(y, ($(sm.unknown_idx_map[a.sym]))))
+        :(ref(y, ($(a.idx))))
     else
-        :(from_real(ref(y, ($(sm.unknown_idx_map[a.sym]))), $(basetypeof(a.value)), $(size(a.value))))
+        :(from_real(ref(y, ($(a.idx))), $(basetypeof(a.value)), $(size(a.value))))
     end
 end
 function replace_unknowns(a::RefUnknown, sm::Sim) # handle array referencing
     add_var(a.u, sm)
-    sm.y_map[sm.unknown_idx_map[a.u.sym]] = a.u
     if isreal(a.u.value) && ndims(a.u.value) < 2
-        :(ref(y, ($(sm.unknown_idx_map[a.u.sym][a.idx...]))))
+        :(ref(y, ($(a.u.idx[a.idx...]))))
     else
-        :(from_real(ref(y, ($(sm.unknown_idx_map[a.u.sym]))), $(basetypeof(a.u.value)), $(size(a.u.value)))[$(a.idx...)])
+        :(from_real(ref(y, ($(a.u.idx))), $(basetypeof(a.u.value)), $(size(a.u.value)))[$(a.idx...)])
     end
 end
 function replace_unknowns(a::DerUnknown, sm::Sim) 
-    add_var(a, sm)
-    sm.y_map[sm.unknown_idx_map[a.parent.sym]] = a.parent
-    sm.yp_map[sm.unknown_idx_map[a.sym]] = a
+    add_var(a.parent, sm)
+    sm.yp_map[a.sym] = a
+    global _sm = sm
+    global _a = a
     if isreal(a.value) && ndims(a.value) < 2
-        :(ref(yp, ($(sm.unknown_idx_map[a.sym]))))
+        a.idx == nothing ?
+            :(ref(yp, ($(a.parent.idx)))) :
+            :(ref(yp, ($(a.parent.idx[a.idx...])))) 
     else
-        :(from_real(ref(yp, ($(sm.unknown_idx_map[a.sym]))), $(basetypeof(a.value)), $(size(a.value))))
+        a.idx == nothing ?
+            :(from_real(ref(yp, ($(a.parent.idx))), $(basetypeof(a.value)), $(size(a.parent.value)))) :
+            :(from_real(ref(yp, ($(a.parent.idx))), $(basetypeof(a.value)), $(size(a.parent.value)))[$(a.idx...)])
     end
 end
 function replace_unknowns(a::PassedUnknown, sm::Sim)

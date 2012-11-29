@@ -29,6 +29,7 @@ import Base.iround, Base.itrunc, Base.ifloor, Base.iceil, Base.abs
 import Base.string, Base.show
 import Base.isnan, Base.isinf, Base.^, Base.cmp, Base.sqrt, Base.min, Base.max, Base.isless, Base.atan2
 import Base.ceil, Base.floor, Base.trunc  
+import Base.dot 
 import Base.round 
 import Base.angle,Base.log10
 import Base.cbrt,Base.log,Base.log2,Base.exp,Base.expm1
@@ -64,7 +65,7 @@ export NumberOrUnknown, Signal, UVoltage, UCurrent, ElectricalNode, Voltage, Cur
        UAngularAcceleration, AngularAcceleration, Flange
 ## Blocks
 export Integrator, Derivative,
-       LimPID, TransferFunction, StateSpace, Limiter, DeadZone
+       LimPID, TransferFunction, StateSpace, Limiter, VariableLimiter, DeadZone
 ## Electrical
 export SeriesProbe, BranchHeatPort,
        Resistor, Capacitor, Inductor, SaturatingInductor, Transformer, EMF,

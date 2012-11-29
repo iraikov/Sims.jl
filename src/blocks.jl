@@ -67,9 +67,9 @@ function TransferFunction(u::Signal, y::Signal,
         y - d * u
     else
        {
-        der(x_scaled[1]) - (-a[2:na] .* x_scaled + a_end * u) / a[1]
+        der(x_scaled[1]) - (dot(-a[2:na], x_scaled) + a_end * u) / a[1]
         der(x_scaled[2:nx]) - x_scaled[1:nx-1]
-        -y + ((bb[2:na] - d * a[2:na]) .* x_scaled) / a_end + d * u
+        -y + dot(bb[2:na] - d * a[2:na], x_scaled) / a_end + d * u
         x - x_scaled / a_end
        }
     end
@@ -84,15 +84,15 @@ end
 
 
 
-function Limiter(u::Signal, y::Signal, uMax::Real, uMin::Real)
-    {
-     y - ifelse(u > uMax, uMax,
-                ifelse(u < uMin, uMin,
-                       u))
-     }
-end
+## function Limiter(u::Signal, y::Signal, uMax::Real, uMin::Real)
+##     {
+##      y - ifelse(u > uMax, uMax,
+##                 ifelse(u < uMin, uMin,
+##                        u))
+##      }
+## end
 
-function Limiter(u::Signal, y::Signal, uMax::Real, uMin::Real)
+function Limiter(u::Signal, y::Signal, uMax::Signal, uMin::Signal)
     clamped_pos = Discrete(false)
     clamped_neg = Discrete(false)
     {
@@ -103,6 +103,7 @@ function Limiter(u::Signal, y::Signal, uMax::Real, uMin::Real)
                        u))
      }
 end
+VariableLimiter = Limiter
 
 function DeadZone(u::Signal, y::Signal, uMax::Real, uMin::Real)
     pos = Discrete(false)

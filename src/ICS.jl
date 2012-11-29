@@ -281,18 +281,18 @@ function ex_PI_ContinuousVsDigital()
     cont_u = Unknown("cont_u")
     cont_y = Unknown("cont_y")
     cont_cs = Unknown("cont_cs")
-    desc_u = Unknown("desc_u")
-    desc_y = Unknown("desc_y")
-    desc_cs = Unknown("desc_cs")
+    disc_u = Unknown("disc_u")
+    disc_y = Unknown("disc_y")
+    disc_cs = Unknown("disc_cs")
     {
      Step(step_u,  @options(startTime => 5.0, height => 0.5))
      Step(disturb, @options(startTime => 30.0, height => -0.2))
      ## TransferFunction(cont_u, cont_y, @options(num => [12.0,1], den => [20.0, 12, 1]))
-     ## TransferFunction(desc_u, desc_y, @options(num => [12.0,1], den => [20.0, 12, 1]))
+     ## TransferFunction(disc_u, disc_y, @options(num => [12.0,1], den => [20.0, 12, 1]))
      TransferFunction(cont_u, cont_y, [12.0,1], [20.0, 12, 1])
-     TransferFunction(desc_u, desc_y, [12.0,1], [20.0, 12, 1])
+     TransferFunction(disc_u, disc_y, [12.0,1], [20.0, 12, 1])
      disturb + cont_cs - cont_u
-     disturb + desc_cs - desc_u
+     disturb + disc_cs - disc_u
      PID(step_u, cont_y, cont_cs,
          @options(AntiWindup => true,
          CS_start => 0.0,
@@ -304,8 +304,9 @@ function ex_PI_ContinuousVsDigital()
          Td => 0.5,
          N => 8.0,
          Ti => 5.0))
-     PID(step_u, cont_y, cont_cs,
+     PID(step_u, disc_y, disc_cs,
          @options(AntiWindup => true,
+         ## Ts => 0.01,
          CS_start => 0.0,
          CSmin => 0.0,
          CSmax => 2.0,
@@ -318,7 +319,7 @@ function ex_PI_ContinuousVsDigital()
     }
 end
 
-## function sim_PI_ContinuousVsDigital()
+function sim_PI_ContinuousVsDigital()
 
     m = ex_PI_ContinuousVsDigital()
     f = elaborate(m)
@@ -326,4 +327,21 @@ end
     y = sim(s, 40.0)
     wplot(y, "PI_ContinuousVsDigital.pdf")
     
-## end
+end
+
+function ex_TransferFunction()
+    u = Unknown("u")
+    y = Unknown("y")
+    {
+     Step(u,  @options(startTime => 5.0, height => 0.5))
+     TransferFunction(u, y, [12.0,1], [20.0, 12, 1])
+    }
+end
+
+function sim_TransferFunction()
+    m = ex_TransferFunction()
+    f = elaborate(m)
+    s = create_sim(f)
+    y = sim(s, 40.0)
+    wplot(y, "TransferFunction.pdf")
+end

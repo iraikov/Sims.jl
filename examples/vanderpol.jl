@@ -44,11 +44,28 @@ v = Vanderpol()       # returns the hierarchical model
 v_f = elaborate(v)    # returns the flattened model
 v_s = create_sim(v_f) # returns a "Sim" ready for simulation
 
-v_yout = sim(v_s, 10.0) # run the simulation to 10 seconds and return
-                        # the result as an array
+v_y = sim(v_s, 10.0) # run the simulation to 10 seconds and return
+                     # the result as an array
 
 # Plotting requires the Gaston or Winston libraries
-## plot(v_yout)
+## plot(v_y)
 
 # plot the signals against each other:
-## plot(v_yout.y[:,2], v_yout.y[:,3])
+## plot(v_y.y[:,2], v_y.y[:,3])
+
+
+# testing of arrays and referencing derivatives
+function Vanderpol_with_arrays()
+    x = Unknown([0.0, 1.0, 0.0], "x")   # the 3rd variable is added to test non-der variables
+    {
+     # The -1.0 in der(x, -1.0) is the initial value for the derivative 
+     der(x[1], -1.0) - ((1 - x[2]^2) * x[1] - x[2]) # == 0 is assumed
+     der(x[2]) - x[1]
+     x[3] - 2 * x[1]
+     }
+end
+
+va = Vanderpol_with_arrays() 
+va_f = elaborate(va)   
+va_s = create_sim(va_f)
+va_y = sim(va_s, 10.0) 
