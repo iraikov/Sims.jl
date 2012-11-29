@@ -1,11 +1,11 @@
+module Sims
+
 if isdir(julia_pkgdir() * "/Winston")
     load("Winston")
 end    
 ## if isdir(julia_pkgdir() * "/Tk")
 ##     load("Tk")
 ## end
-
-module Sims
 
 using Base
 import Base.length, Base.eltype, Base.ndims, Base.numel, Base.size, Base.promote
@@ -63,8 +63,8 @@ export NumberOrUnknown, Signal, UVoltage, UCurrent, ElectricalNode, Voltage, Cur
        UAngle, UTorque, Angle, Torque, UAngularVelocity, AngularVelocity,
        UAngularAcceleration, AngularAcceleration, Flange
 ## Blocks
-export Integrator, Derivativ, Integrator, Derivative,
-       LimPID, StateSpace, Limiter, DeadZone
+export Integrator, Derivative,
+       LimPID, TransferFunction, StateSpace, Limiter, DeadZone
 ## Electrical
 export SeriesProbe, BranchHeatPort,
        Resistor, Capacitor, Inductor, SaturatingInductor, Transformer, EMF,

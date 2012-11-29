@@ -51,6 +51,31 @@ function StateSpace(u::Signal, y::Signal,
      }
 end
 
+function TransferFunction(u::Signal, y::Signal,
+                          b::Vector{Float64}, a::Vector{Float64})
+    na = length(a)
+    nb = length(b)
+    nx = length(a) - 1
+    bb = [zeros(max(0, na - nb)), b]
+    d = bb[1] / a[1]
+    a_end = (a[end] > 100 * eps() * sqrt(a' * a)[1]) ? a[end] : 1.0
+    
+    x = Unknown(zeros(nx))
+    x_scaled = Unknown(zeros(nx))
+    
+    if nx == 0
+        y - d * u
+    else
+       {
+        der(x_scaled[1]) - (-a[2:na] .* x_scaled + a_end * u) / a[1]
+        der(x_scaled[2:nx]) - x_scaled[1:nx-1]
+        -y + ((bb[2:na] - d * a[2:na]) .* x_scaled) / a_end + d * u
+        x - x_scaled / a_end
+       }
+    end
+end
+
+
 
 
 ########################################

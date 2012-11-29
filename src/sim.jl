@@ -289,8 +289,8 @@ end
 
 function _delay(xx, t)
     x = xx.x1
-    @show x
-    @show t
+    ## @show x
+    ## @show t
     # store the current t & y
     while length(x.t) > 0 && xx.sim.t[1] <= x.t[end]  # pop off some invalid times if needed
         del(x.t, length(x.t))
@@ -306,12 +306,12 @@ function _delay(xx, t)
     elseif idx > length(x.t) 
         res = x.y[end]
     else
-    @show x.t[idx-1]
-    @show x.t[idx]
-    @show x.y[idx-1]
-    @show x.y[idx]
+    ## @show x.t[idx-1]
+    ## @show x.t[idx]
+    ## @show x.y[idx-1]
+    ## @show x.y[idx]
         res = (t - x.t[idx-1]) / (x.t[idx] - x.t[idx-1]) .* (x.y[idx] - x.y[idx-1]) + x.y[idx-1]
-    @show res
+    ## @show res
     end
     res
 end
@@ -337,6 +337,8 @@ end
 
 function delay(x::Unknown, val)
     x.x1 = DelayHistory({0.0}, {x.value})
+    td = MTime - val
+    ## MExpr(:((Event($(td), {}); Sims._delay($(PassedUnknown(x)), t[1] - $(val)))))
     MExpr(:(Sims._delay($(PassedUnknown(x)), t[1] - $(val))))
 end
 
@@ -970,6 +972,7 @@ println("starting sim()")
     idid = [int32(0)]
     info = fill(int32(0), 20)
     info[11] = 1    # calc initial conditions (1 or 2) / don't calc (0)
+    info[16] = 0    # option to exclude algebraic variables from the error test (don't = 0, exclude = 1)
     info[18] = 2    # more initialization info
     
     function setup_sim(sm::Sim, tstart::Float64, tstop::Float64, Nsteps::Int)
@@ -983,7 +986,7 @@ println("starting sim()")
         rpar = [0.0]
         rtol = [1e-5]
         atol = [1e-3]
-        lrw = [int32(N[1]^2 + 9 * N[1] + 60 + 3 * nrt[1])] 
+        lrw = [int32(N[1]^2 + 9 * N[1] + 60 + 3 * nrt[1])] + (info[16] == 1 ? N : 0)
         rwork = fill(0.0, lrw[1])
         liw = [int32(2*N[1] + 40)] 
         iwork = fill(int32(0), liw[1])
@@ -1018,9 +1021,9 @@ println("starting sim()")
     yout = zeros(Nsteps, Ncol + 1)
 
     for idx in 1:Nsteps
-
+## @show tout
         (t,y,yp,jroot) = simulate(tout)
-
+## @show t
         ## if t[1] * 1.01 > tstop
         ##     break
         ## end
@@ -1058,8 +1061,10 @@ println("starting sim()")
                 end
             end
         elseif idid[1] < 0 && idid[1] > -11
-            println("RESTARTING")
+            println("RESTARTING, idid[1]==", idid[1])
             info[1] = 0
+                    info[11] = 1    # do/don't calc initial conditions
+            tout = t + tstep*20
         else
             println("DASKR failed prematurely")
             break
@@ -1188,3 +1193,42 @@ function wplot( sm::SimResult )
     Tk.tk( a, 800, 600 )
 end
 
+#
+# @unknown
+#
+# A macro to ease entry of many unknowns.
+#
+#   @unknowns i("Load resistor current") v x("some val", 3.0) y{UVoltage}("label")
+#
+# becomes:
+#
+#   i = Unknown("Resistor current")
+#   v = Unknown()
+#   x = Unknown(3.0, "some val")
+#   x = Unknown{UVoltage}("label")
+#
+
+macro unknown(args...)
+    blk = expr(:block)
+    for arg in args
+        if isa(arg, Symbol)
+            push(blk.args, :($arg = Unknown()))
+        elseif isa(arg, Expr)
+            name = arg.args[1]
+            if length(arg.args) > 1
+                newcall = copy(arg)
+                if isa(arg.args[1], Expr) && arg.args[1].head == :curly    # {}
+                    name = arg.args[1].args[1]
+                    newcall.args[1].args[1] = :Unknown
+                else
+                    newcall.args[1] = :Unknown
+                end
+                push(blk.args, :($name = $newcall))
+            else
+                push(blk.args, :($name = Unknown()))
+            end
+        end
+    end
+    push(blk.args, :nothing)
+    return blk
+end
