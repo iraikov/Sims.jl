@@ -206,7 +206,8 @@ for f = (:der, :sign,
     @eval ($f)(x::ModelType) = mexpr(:call, ($f), x)
     @eval ($f)(x::MExpr) = mexpr(:call, ($f), x.ex)
 end
-
+sum(x::MExpr, i::Int) = mexpr(:call, :sum, x, i)
+sum(x::ModelType, i::Int) = mexpr(:call, :sum, x, i)
 
 # For now, a model is just a vector that anything, but probably it
 # should include just ModelType's.
