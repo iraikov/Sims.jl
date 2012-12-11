@@ -95,13 +95,6 @@
 # even more difficult to interface. 
 # 
 
-########################################
-## Utilities                          ##
-########################################
-
-compile_daskr() = cd(julia_pkgdir() * "/Sims/lib") do
-    run(`gfortran -fPIC -O2 -ggdb -shared -o daskr.so DASKR/ddaskr.f DASKR/dlinpk.f DASKR/daux.f`) 
-end
 
 ########################################
 ## Type definitions                   ##
@@ -964,12 +957,22 @@ end
 # the main variables used in the residual function callback.
 #
 
-dllname = julia_pkgdir() * "/Sims/lib/daskr.so"
+compile_daskr() = cd(julia_pkgdir() * "/Sims/lib") do
+    @unix_only run(`gfortran -fPIC -O2 -ggdb -shared -o daskr.so DASKR/ddaskr.f DASKR/dlinpk.f DASKR/daux.f`) 
+    @windows_only run(`gfortran -fPIC -O2 -ggdb -shared -o daskr.dll DASKR/ddaskr.f DASKR/dlinpk.f DASKR/daux.f`) 
+end
+
+@unix_only    dllname = julia_pkgdir() * "/Sims/lib/daskr.so"
+@windows_only dllname = julia_pkgdir() * "/Sims/lib/daskr.dll"
 if !isfile(dllname)
     println("*********************************************")
-    println("Can't find daskr.so; attempting to compile...")
+    println("Can't find the dll $dllname")
+    println("Attempting to compile...")
     println("*********************************************")
     compile_daskr() 
+    println("*********************************************")
+    println("Compilation finished")
+    println("*********************************************")
 end    
 const lib = dlopen(dllname)
 
