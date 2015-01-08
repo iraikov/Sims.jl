@@ -6,7 +6,6 @@ using Winston
 ## FitzHugh-Nagumo neuron model       ##
 ########################################
 
-tend = 110.0
 
 a = 0.7
 b = 0.8
@@ -34,7 +33,7 @@ v   = FitzHughNagumo(0.5)       # returns the hierarchical model
 v_f = elaborate(v)    # returns the flattened model
 v_s = create_sim(v_f) # returns a "Sim" ready for simulation
 
-tf = 200.0
+tf = 1200.0
 dt = 0.025
 
 v_ptr = setup_sunsim (v_s, reltol=1e-7, abstol=1e-7)
