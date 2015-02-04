@@ -115,7 +115,7 @@ hh_s = create_sim(hh_f) # returns a "Sim" ready for simulation
 # runs the simulation and returns
 # the result as an array plus column headings
 tf = 500.0
-dt = 0.001
+dt = 0.02
 
 @time hh_yout = sunsim(hh_s, tstop=tf, Nsteps=int(tf/dt), reltol=1e-6, abstol=1e-6)
 
