@@ -30,6 +30,7 @@ type SimFunctions
                                 #   positive root crossing is detected.
     event_neg::Vector{Function} # Each function is to be run when a
                                 #   negative root crossing is detected.
+    jacobian::Function           
 end
 SimFunctions(resid::Function, event_at::Function,
              event_pos::Vector{None}, event_neg::Vector{None}) = 
@@ -202,7 +203,9 @@ function setup_functions(sm::Sim)
     event_thunk = Expr(:call, :(Sims.vcat_real), ev_block...)
     # Same but for the initial equations:
     init_thunk = Expr(:call, :(Sims.vcat_real), in_block...)
-
+    rhs_thunk = Expr(:vcat, map(cleanexpr, map (x -> x.args[3], eq_block))...)
+    neq = length(eq_block)
+    
     # Helpers to convert an array of expressions into a single expression.
     to_thunk{T}(ex::Vector{T}) = reduce((x,y) -> :($x;$y), :(), ex)
     to_thunk(ex::Expr) = ex
@@ -235,6 +238,8 @@ function setup_functions(sm::Sim)
     _sim_event_at_name = gensym ("_sim_event_at")
     _sim_event_pos_array_name = gensym ("_sim_event_pos_array")
     _sim_event_neg_array_name = gensym ("_sim_event_neg_array")
+    _sim_rhs_name = gensym ("_sim_rhs")
+    _sim_jacobian_name = gensym ("_sim_jacobian")
     
     #
     # The framework for the master function defined. Each "thunk" gets
@@ -245,6 +250,10 @@ function setup_functions(sm::Sim)
             # to eval globally for two reasons: (1) performance and (2) so
             # cfunction could be used to set up Julia callbacks. This does
             # mean that the _sim_* functions are seen globally.
+            function $_sim_rhs_name (y, r)
+                r[1:end] = $rhs_thunk
+                r
+            end
             function $_sim_resid_name (t, y, yp, r, history)
                  ##@show y
                  ## @show length(y)
@@ -268,10 +277,14 @@ function setup_functions(sm::Sim)
             end
             $_sim_event_pos_array_name = $ev_pos_thunk
             $_sim_event_neg_array_name = $ev_neg_thunk
+            $_sim_jacobian_name = forwarddiff_jacobian($_sim_rhs_name, Float64, fadtype=:dual, n=$neq, m=$neq)
+        
         () -> begin
             Sims.SimFunctions($_sim_resid_name, $_sim_init_name,
                               $_sim_event_at_name, $_sim_event_pos_array_name,
-                              $_sim_event_neg_array_name)
+                              $_sim_event_neg_array_name,
+                              $_sim_jacobian_name)
+
         end
     end
 

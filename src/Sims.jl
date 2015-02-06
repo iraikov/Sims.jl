@@ -3,6 +3,7 @@ module Sims
 
 using Reexport
 @reexport using Reactive
+@reexport using ForwardDiff
 
 import Base.ifelse,
        Base.hcat,

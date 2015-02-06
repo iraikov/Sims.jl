@@ -8,6 +8,48 @@ type SimSundials
     ss::SimState # SimState structure
 end
 
+immutable DlsMatStruct
+  ty::Cint
+  M::Clong
+  N::Clong
+  ldim::Clong
+  mu::Clong
+  ml::Clong
+  s_mu::Clong
+  data::Ptr{Cdouble}
+  ldata::Clong
+  cols::Ptr{Ptr{Cdouble}}
+end
+
+    
+function jacfun(n::Int64, t::Float64, u::N_Vector, up::N_Vector, r::N_Vector,
+                J::Ptr{DlsMatStruct},  userdata_ptr::Ptr{Void},
+                tmp1::N_Vector, tmp2::N_Vector, tmp3::N_Vector)
+
+    ss::SimState = unsafe_pointer_to_objref(userdata_ptr)
+    sm::Sim = ss.sm
+
+    y  = pointer_to_array(Sundials.N_VGetArrayPointer_Serial(u), (n,))
+    
+    jac = sm.F.jacobian(y)
+    @show jac
+    
+    Jdata = unsafe_load(J)
+    cols = pointer_to_array(Jdata.cols,(n,))
+    for j=1:n
+        colj = pointer_to_array(cols[j],(n,))
+        for i=1:n
+            colj[i] = jac[i,j]
+        end
+        @show colj
+    end
+
+    data  = pointer_to_array(Jdata.data, (n,n))
+    @show data
+    
+    return int32(0)   # indicates normal return
+end
+
 function initfun(u::N_Vector, r::N_Vector, userdata_ptr::Ptr{Void})
     ss::SimState = unsafe_pointer_to_objref(userdata_ptr)
     sm::Sim = ss.sm
@@ -70,6 +112,10 @@ function setup_sunsim(ss::SimState, reltol::Float64, abstol::Float64, alg::Bool)
     flag  = Sundials.IDASStolerances(mem, reltol, abstol)
     flag  = Sundials.IDASetSuppressAlg(mem, alg ? 0 : 1)
     flag  = Sundials.IDADense(mem, neq)
+    j = cfunction(jacfun,Int32,(Int64, Float64, N_Vector, N_Vector, N_Vector,
+                                Ptr{DlsMatStruct},  Ptr{Void},
+                                N_Vector, N_Vector, N_Vector))
+    flag  = Sundials.IDADlsSetDenseJacFn (mem, j)
     flag  = Sundials.IDARootInit(mem, int32(length(sm.F.event_pos)), rootfun)
     id    = float64(copy(sm.id))
     id[id .< 0] = 0.0
