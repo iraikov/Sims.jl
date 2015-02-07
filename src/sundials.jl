@@ -22,7 +22,8 @@ immutable DlsMatStruct
 end
 
     
-function jacfun(n::Int64, t::Float64, u::N_Vector, up::N_Vector, r::N_Vector,
+function jacfun(n::Int64, t::Float64, c_j::Float64,
+                u::N_Vector, up::N_Vector, r::N_Vector,
                 J::Ptr{DlsMatStruct},  userdata_ptr::Ptr{Void},
                 tmp1::N_Vector, tmp2::N_Vector, tmp3::N_Vector)
 
@@ -35,16 +36,14 @@ function jacfun(n::Int64, t::Float64, u::N_Vector, up::N_Vector, r::N_Vector,
     @show jac
     
     Jdata = unsafe_load(J)
-    cols = pointer_to_array(Jdata.cols,(n,))
+    data  = pointer_to_array(Jdata.data, (n,n))
+    cols  = pointer_to_array(Jdata.cols,(n,))
+
     for j=1:n
         colj = pointer_to_array(cols[j],(n,))
-        for i=1:n
-            colj[i] = jac[i,j]
-        end
-        @show colj
+        colj[1:end] = jac[j,:]
     end
 
-    data  = pointer_to_array(Jdata.data, (n,n))
     @show data
     
     return int32(0)   # indicates normal return
@@ -112,7 +111,8 @@ function setup_sunsim(ss::SimState, reltol::Float64, abstol::Float64, alg::Bool)
     flag  = Sundials.IDASStolerances(mem, reltol, abstol)
     flag  = Sundials.IDASetSuppressAlg(mem, alg ? 0 : 1)
     flag  = Sundials.IDADense(mem, neq)
-    j = cfunction(jacfun,Int32,(Int64, Float64, N_Vector, N_Vector, N_Vector,
+    j = cfunction(jacfun,Int32,(Int64, Float64, Float64,
+                                N_Vector, N_Vector, N_Vector,
                                 Ptr{DlsMatStruct},  Ptr{Void},
                                 N_Vector, N_Vector, N_Vector))
     flag  = Sundials.IDADlsSetDenseJacFn (mem, j)
@@ -195,6 +195,8 @@ function sunsim(ss::SimState, tstop = 1.0, Nsteps = 500, reltol = 1e-4, abstol =
     if any(abs(rtest) .>= sm.reltol)
         flag = Sundials.IDACalcIC(mem, init == :Y ? Sundials.IDA_Y_INIT : Sundials.IDA_YA_YDP_INIT, tstart + tstep)
     end
+
+    @show flag
     
     for idx in 1:Nsteps
 
