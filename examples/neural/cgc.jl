@@ -600,9 +600,9 @@ cgc_s = create_sim(cgc_f) # returns a "Sim" ready for simulation
 # runs the simulation and returns
 # the result as an array plus column headings
 tf = 1000.0
-dt = 0.025
+dt = 0.05
 
-@time cgc_yout = sunsim(cgc_s, tstop=tf, Nsteps=int(tf/dt), reltol=1e-6, abstol=1e-6)
+@time cgc_yout = sunsim(cgc_s, tstop=tf, Nsteps=int(tf/dt), Nsamples=4, reltol=1e-6, abstol=1e-6)
 
 ##@time cgc_yout = sim(cgc_s, tf, int(tf/dt))
 
